@@ -5,7 +5,27 @@ export default {
         const method = request.method;
 
         try {
+            // ---------------------------
+            // ROOT ROUTE
+            // ---------------------------
+            if (path === "/" && method === "GET")
+                return rootRoute();
+
+            // ---------------------------
+            // STATUS ROUTE
+            // ---------------------------
+            if (path === "/api/status" && method === "GET")
+                return json({ status: "ok" });
+
+            // ---------------------------
+            // AUTHLIB-INJECTOR API ROUTE
+            // ---------------------------
+            if (path === "/api/skin-authlib" && method === "GET")
+                return authlibInjectorRoute();
+
+            // ---------------------------
             // AUTH SERVER ROUTES
+            // ---------------------------
             if (path === "/api/skin-authlib/authserver/authenticate" && method === "POST")
                 return authenticate(request);
 
@@ -15,20 +35,21 @@ export default {
             if (path === "/api/skin-authlib/authserver/refresh" && method === "POST")
                 return refresh(request);
 
+            // ---------------------------
             // SESSION SERVER ROUTES
+            // ---------------------------
             if (path === "/api/skin-authlib/sessionserver/session/minecraft/join" && method === "POST")
                 return joinProxy(request);
 
             if (path === "/api/skin-authlib/sessionserver/session/minecraft/hasJoined" && method === "GET")
                 return hasJoinedProxy(url);
 
-            // PROFILE API ROUTE
             if (path.startsWith("/api/skin-authlib/sessionserver/session/minecraft/profile/") && method === "GET") {
                 const uuid = path.split("/").pop();
                 return getProfile(uuid);
             }
 
-            return new Response("Not found", { status: 404 });
+            return new Response("Not Found", { status: 404 });
 
         } catch (err) {
             return new Response("Internal error: " + err, { status: 500 });
@@ -38,7 +59,7 @@ export default {
 
 
 // ======================================================================
-//                              JSON Helper
+//                               JSON HELPER
 // ======================================================================
 function json(obj, status = 200) {
     return new Response(JSON.stringify(obj), {
@@ -47,6 +68,42 @@ function json(obj, status = 200) {
     });
 }
 
+
+// ======================================================================
+//                           ROOT ROUTE
+// ======================================================================
+function rootRoute() {
+    const headers = {
+        "Content-Type": "application/json",
+        "X-Authlib-Injector-API-Location": "/api/skin-authlib"
+    };
+
+    return new Response(
+        JSON.stringify({ message: "Syanic Skins Auth Servers :)" }),
+        { status: 200, headers }
+    );
+}
+
+
+// ======================================================================
+//                     AUTHLIB-INJECTOR ROUTE
+// ======================================================================
+function authlibInjectorRoute() {
+    const authlibData = {
+        meta: {
+            implementationName: "offline-lc-authlib",
+            implementationVersion: "1.0.0",
+            serverName: "OfflineLC",
+            "feature.non_email_login": true,
+            "feature.legacy_skin_api": true
+        },
+        skinDomains: [".syanic.org"]
+    };
+
+    return json(authlibData);
+}
+
+
 // ======================================================================
 //                              CONSTANTS
 // ======================================================================
@@ -54,7 +111,7 @@ const MOJANG_SESSION = "https://sessionserver.mojang.com/session/minecraft";
 
 
 // ======================================================================
-//                     AUTHENTICATE ROUTE
+//                     AUTHENTICATE
 // ======================================================================
 async function authenticate(request) {
     const data = await request.json();
@@ -90,15 +147,15 @@ async function authenticate(request) {
 
 
 // ======================================================================
-//                     VALIDATE ROUTE
+//                     VALIDATE
 // ======================================================================
 async function validateToken() {
-    return new Response(null, { status: 204 }); // always valid
+    return new Response(null, { status: 204 });
 }
 
 
 // ======================================================================
-//                     REFRESH ROUTE
+//                     REFRESH
 // ======================================================================
 async function refresh(request) {
     const data = await request.json();
@@ -115,7 +172,7 @@ async function refresh(request) {
 
 
 // ======================================================================
-//                     JOIN ROUTE
+//                     JOIN
 // ======================================================================
 async function joinProxy(request) {
     const body = await request.json();
@@ -139,7 +196,7 @@ async function joinProxy(request) {
 
 
 // ======================================================================
-//                     HASJOINED ROUTE
+//                     HASJOINED
 // ======================================================================
 async function hasJoinedProxy(url) {
     const username = url.searchParams.get("username");
@@ -158,35 +215,27 @@ async function hasJoinedProxy(url) {
 
 
 // ======================================================================
-//                     PROFILE ROUTE
+//                     PROFILE LOOKUP
 // ======================================================================
 async function getProfile(uuid) {
-    const clean = uuid.replace(/-/g, "");
-
     if (isPremiumUUID(uuid)) {
         const url = `${MOJANG_SESSION}/profile/${uuid}?unsigned=true`;
 
-        try {
-            const r = await fetch(url);
+        const r = await fetch(url);
 
-            if (r.status !== 200)
-                return json({ error: "Profile not found in Mojang Server" }, 404);
-
-            const data = await r.json();
-            return json(data);
-
-        } catch (e) {
+        if (r.status !== 200)
             return json({ error: "Profile not found in Mojang Server" }, 404);
-        }
+
+        const data = await r.json();
+        return json(data);
     }
 
     return json({ error: "Offline Accounts have no profile." }, 403);
 }
 
 
-
 // ======================================================================
-//                     HELPER: OFFLINE UUID (v3 MD5)
+//                    HELPER: OFFLINE UUID V3 (MD5)
 // ======================================================================
 async function offlineUUID(name) {
     const base = "OfflinePlayer:" + name;
@@ -194,8 +243,8 @@ async function offlineUUID(name) {
     const md5 = await crypto.subtle.digest("MD5", new TextEncoder().encode(base));
     let bytes = new Uint8Array(md5);
 
-    bytes[6] = (bytes[6] & 0x0f) | 0x30; // version 3
-    bytes[8] = (bytes[8] & 0x3f) | 0x80; // variant
+    bytes[6] = (bytes[6] & 0x0f) | 0x30;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
 
     return bytesToUUID(bytes);
 }
@@ -213,45 +262,23 @@ function bytesToUUID(bytes) {
 
 
 // ======================================================================
-//                     HELPER: PREMIUM UUID CHECK
+//                       HELPER: PREMIUM CHECK
 // ======================================================================
 function isPremiumUUID(uuid) {
     uuid = uuid.replace(/-/g, "");
     return uuid[12] === "4";
 }
 
-
-// ======================================================================
-//                     HELPER: PREMIUM USERNAME CHECK
-// ======================================================================
 async function isPremiumUsername(username) {
     const r = await fetch(
         `https://api.mojang.com/users/profiles/minecraft/${username}`
     );
-
     return r.status === 200;
 }
 
 
 // ======================================================================
-//                     HELPER: GET UUID FROM USERNAME
-// ======================================================================
-async function getUUIDFromUsername(username) {
-    const r = await fetch(
-        `https://api.mojang.com/users/profiles/minecraft/${username}`
-    );
-
-    if (r.status === 200) {
-        const data = await r.json();
-        return data.id;
-    }
-
-    return null;
-}
-
-
-// ======================================================================
-//                     HELPER: SPOOF JWT
+//                       HELPER: SPOOF JWT
 // ======================================================================
 function generateSpoofJWT() {
     const now = Math.floor(Date.now() / 1000);
