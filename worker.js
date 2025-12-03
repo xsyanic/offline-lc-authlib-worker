@@ -79,7 +79,7 @@ function rootRoute() {
     };
 
     return new Response(
-        JSON.stringify({ message: "Syanic Skins Auth Servers :)" }),
+        JSON.stringify({ message: "Offline LC Authlib server" }),
         { status: 200, headers }
     );
 }
